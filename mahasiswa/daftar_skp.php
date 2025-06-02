@@ -1,14 +1,17 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('user_session'); // HARUS sebelum session_start()
+    session_start();
+}
 
 if(!isset($_SESSION['role']) || $_SESSION['role'] != 'user'){
-    header("Location: ../pages/login.php");
+    header("Location: index.php?x=login");
     exit();
 }
 
-require_once("../config/db.php");
+require_once __DIR__ . '/../config/db.php'; 
+require_once __DIR__ . '/../vendor/autoload.php';
+
 
 
 
@@ -23,12 +26,14 @@ $user = $result->fetch_assoc();
 
 
 // Function untuk menampilkan foto profil
-function displayProfilePicture($userData) {
-    if (!empty($userData['foto_profil'])) {
-        $imageType = $userData['profile_picture_type'] ?? 'image/jpeg';
-        return 'data:' . $imageType . ';base64,' . base64_encode($userData['foto_profil']);
+function displayProfilePicture($user) {
+    if (!empty($user['foto_profil'])) {
+        $imageType = $user['profile_picture_type'] ?? 'image/jpeg';
+        return 'data:' . $imageType . ';base64,' . base64_encode($user['foto_profil']);
     }
-    return '';
+    return 'data:image/svg+xml;base64,' . base64_encode(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
+    );
 }
 
 
@@ -121,8 +126,6 @@ if (!isset($summary['total_points']) || $summary['total_points'] == 0) {
 }
 // Pastikan ini ada di file view_skp.php atau file terpisah untuk generate PDF
 if (isset($_GET['action']) && $_GET['action'] == 'print') {
-    require_once('../vendor/autoload.php');
-    
     // Ambil data summary dari database
     $summary_stmt = $con->prepare("
         SELECT 
@@ -151,13 +154,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
     $summary_stmt->execute();
     $summary_result = $summary_stmt->get_result();
     $summary = $summary_result->fetch_assoc();
-    
-    // Konversi gambar ke base64
-    $logo_path = '../assets/img/logo-UNSIKA.png';
-    $logo_data = '';
-    if (file_exists($logo_path)) {
-        $logo_data = base64_encode(file_get_contents($logo_path));
-    }
+
+
+    $logoPath = __DIR__ . '/../assets/img/logo-UNSIKA.png';
+    $ttdProdi = __DIR__ . '/../assets/img/Kordinator_Program_Study.png';
+    $ttdVerifikator = __DIR__ . '/../assets/img/verifikator.png';
+
 
     // Buat konten PDF sesuai format gambar 1
  $html = '
@@ -171,9 +173,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
         font-family: "Times New Roman", Times, serif;
     }
     .kop-surat {
-            width: 100%;
-    margin: 0 auto;
-    margin-top: 1.11cm;
+            display: flex;
+    align-items: center;
+    margin-bottom: 20px;
         }
      .kop-container {
             display: flex;
@@ -182,15 +184,14 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
         }
 
         .kop-logo {
-    width: 3cm;
-    height: auto;
-    flex-shrink: 0;
+        width: 100px;
+    margin-right: 20px;
 }
 
 
         .kop-text {
-            flex-grow: 1;
-    text-align: center;
+           text-align: center;
+    flex-grow: 1;
         }
 
         .kop-text h1 {
@@ -213,9 +214,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
         }
 
     .header-line { 
-        border-top: 1px solid #000; 
-        margin: 5px auto;
-        width: 100%;
+         height: 3px;
+    background-color: black;
+    margin-top: 10px;
     }
                  .text-center {
             text-align: center;
@@ -306,19 +307,20 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
         </style>
     </head>
     <body>
-         <div class="kop-surat">
-        <div class="kop-container">
-              ' . ($logo_data ? '<img src="data:image/png;base64,'.$logo_data.'" class="kop-logo" alt="Logo Universitas">' : '') . '
-            <div class="kop-text">
-            <h1>KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI</h1>
-            <h1>UNIVERSITAS SINGAPERBANGSA KARAWANG</h1>
-            <h1>FAKULTAS KEGURUAN DAN ILMU PENDIDIKAN</h1>
-            <h2>Jl. H.S. Ronggowaluyo Telukjambe Timur Telp. (0267) 641177 Fax. (0267) 641367 Ext. 102 - Karawang 41361</h2>
-            <h2>Website: www.unsika.ac.id email: info@unsika.ac.id</h2>
-            <div class="header-line"></div>
-            </div>
-        </div>
-        </div>
+        <table style="width: 100%; border-bottom: 3px solid black; margin-bottom: 10px;">
+    <tr>
+        <td style="width: 15%; text-align: center;">
+            <img src="' . __DIR__ . '/../assets/img/logo-UNSIKA.png' . '" style="width: 90px;">
+        </td>
+        <td style="text-align: center;">
+            <div style="font-size: 14px; font-weight: normal;">KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI</div>
+            <div style="font-size: 16px; font-weight: bold;">UNIVERSITAS SINGAPERBANGSA KARAWANG</div>
+            <div style="font-size: 16px; font-weight: bold;">FAKULTAS KEGURUAN DAN ILMU PENDIDIKAN</div>
+            <div style="font-size: 11px;">Jl. H.S. Ronggowaluyo Telukjambe Timur Telp. (0267) 641177 Fax. (0267) 641367 Ext. 102 - Karawang 41361</div>
+            <div style="font-size: 11px;">Website: www.unsika.ac.id email: info@unsika.ac.id</div>
+        </td>
+    </tr>
+</table>
         
         <div class="title">SATUAN KREDIT PRESTASI MAHASISWA</div>
         
@@ -381,7 +383,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
             <div class="signature-container">
                 <p class="signature-title">Disetujui</p>
                 <div class="signature-line"></div>
-                <img src="../assets/img/Kordinator_Program_Study.png" alt="TTD Koordinator Prodi" class="signature-img">
+               <img src="' . $ttdProdi . '" alt="TTD Koordinator Prodi" class="signature-img">
                 <p class="signature-name"><strong>Evi Karlina Ambarwati, S.S., M.Ed.</strong></p>
                 <p class="signature-id">NIP. 198611212020122007</p>
             </div>
@@ -390,7 +392,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
             <div class="signature-container">
                 <p class="signature-title">Mengetahui</p>
                 <div class="signature-line"></div>
-                <img src="../assets/img/verifikator.png" alt="TTD Verifikator" class="signature-img">
+                <img src="' . $ttdVerifikator . '" alt="TTD Verifikator" class="signature-img">
                 <p class="signature-name"><strong>Yogi Setia Samsi, S.S., M.Hum.</strong></p>
                 <p class="signature-id">NIDN. 0015079001</p>
             </div>
@@ -426,6 +428,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
     $mpdf->WriteHTML($html);
     
     $filename = 'e-SKPly_' . $user['npm'] . '_' . date('Ymd') . '.pdf';
+    if (isset($_GET['preview']) && $_GET['preview'] == '1') {
+        $mpdf->Output($filename, 'I');
+        exit();
+    }
     $mpdf->Output($filename, 'D');
     exit();
 }
@@ -444,7 +450,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/admin-dashboard.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/admin-dashboard.css">
     
     <!-- Animate.css -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
@@ -452,6 +458,19 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
     
     <!-- Custom CSS -->
     <style>
+        #previewModal .modal-dialog {
+    max-width: 90%;
+    height: 90vh;
+}
+#previewModal .modal-body {
+    padding: 0;
+    height: calc(90vh - 120px);
+}
+#pdfPreviewFrame {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
         .status-badge {
             padding: 5px 10px;
             border-radius: 20px;
@@ -559,19 +578,19 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
         
         <ul class="nav flex-column sidebar-menu">
             <li class="nav-item">
-                <a href="dashboard.php" class="nav-link">
+                <a href="index.php?x=dashboard" class="nav-link">
                     <i class="fas fa-tachometer-alt"></i>
                     <span>Dashboard</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="daftar_skp.php" class="nav-link active">
+                <a href="index.php?x=daftar_skp" class="nav-link active">
                     <i class="fas fa-list"></i>
                     <span>Daftar SKP</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="addSkp.php" class="nav-link">
+                <a href="index.php?x=addSkp" class="nav-link">
                     <i class="fas fa-plus-circle"></i>
                     <span>Tambah SKP</span>
                 </a>
@@ -579,7 +598,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
         </ul>
         
         <div class="sidebar-footer p-3">
-            <a href="../pages/logout.php" class="nav-link logout-btn">
+            <a href="index.php?x=logout" class="nav-link logout-btn">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </a>
@@ -612,7 +631,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end profile-dropdown-menu">
                             <li>
-                                <a class="dropdown-item" href="profile.php">
+                                <a class="dropdown-item" href="index.php?x=profile">
                                     <i class="fas fa-user-edit me-2"></i> Edit Profil
                                 </a>
                             </li>
@@ -621,16 +640,33 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
                 </div>
             </div>
         </nav>
+
+        <!-- Modal Preview PDF -->
+        <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="previewModalLabel">Preview Dokumen SKP</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="ratio ratio-1x1">
+                            <iframe id="pdfPreviewFrame" src="" style="width:100%; height:80vh; border:none;"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <!-- Page Content -->
         <div class="container-fluid p-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3><i class="fas fa-list me-2"></i>Daftar Aktivitas SKP</h3>
+                <h3></i>Daftar Aktivitas SKP</h3>
                 <?php if (!empty($activities)): ?>
-                    <a href="daftar_skp.php?action=print" class="btn print-btn">
-                        <i class="fas fa-file-pdf me-2"></i>Cetak Laporan
-                    </a>
-                <?php endif; ?>
+                <button class="btn print-btn" data-bs-toggle="modal" data-bs-target="#previewModal" onclick="loadPdfPreview()">
+                    <i class="fas fa-file-pdf me-2"></i>Cetak Laporan
+                </button>
+            <?php endif; ?>
             </div>
             
             <?php if (empty($activities)): ?>
@@ -642,7 +678,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
                 <p class="empty-state-description">
                     Mulai bangun portofolio SKP Anda dengan menambahkan aktivitas pertama.
                 </p>
-                <a href="add_skp.php" class="btn btn-animate-icon">
+                <a href="index.php?x=add_skp" class="btn btn-animate-icon">
                     <i class="fas fa-plus-circle me-2"></i>Tambah Aktivitas Pertama
                 </a>
                 <div class="empty-state-tips mt-4">
@@ -797,126 +833,17 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
 
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
-<script src="../assets/js/utils.js"></script>
-<script src="../assets/js/script.js"></script>
-<script>
-    // Vue app initialization
-    const { createApp } = Vue;
+<script src="<?= BASE_URL ?>/assets/js/utils.js"></script>
+<script>function loadPdfPreview() {
+    // Buat iframe untuk menampilkan preview PDF
+    const iframe = document.getElementById('pdfPreviewFrame');
+    iframe.src = 'index.php?x=daftar_skp&action=print&preview=1';
     
-    createApp({
-        data() {
-            return {
-                sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
-                isMobile: window.innerWidth <= 768,
-                // Tambahkan data untuk tracking update
-                lastUpdate: null,
-                isCheckingUpdates: false
-            }
-        },
-        methods: {
-            toggleSidebar() {
-                this.sidebarCollapsed = !this.sidebarCollapsed;
-                localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
-            },
-            checkMobile() {
-                this.isMobile = window.innerWidth <= 768;
-            },
-            checkUpdates() {
-                // Hindari multiple simultaneous checks
-                if (this.isCheckingUpdates) return;
-                this.isCheckingUpdates = true;
-                
-                fetch(`api/check_updates.php?user_id=<?= $_SESSION['id'] ?>${this.lastUpdate ? '&last_update=' + this.lastUpdate : ''}`)
-                    .then(response => {
-                        if (!response.ok) throw new Error('Network response was not ok');
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.updated) {
-                            this.lastUpdate = new Date().toISOString();
-                            
-                            // Gunakan SweetAlert untuk konfirmasi yang lebih baik
-                            Swal.fire({
-                                title: 'Pembaruan Tersedia',
-                                text: 'Data telah diperbarui. Muat ulang halaman sekarang?',
-                                icon: 'info',
-                                showCancelButton: true,
-                                confirmButtonText: 'Ya',
-                                cancelButtonText: 'Nanti',
-                                timer: 10000, // Auto-close setelah 10 detik
-                                timerProgressBar: true,
-                                allowOutsideClick: false
-                            }).then((result) => {
-                                if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                                    location.reload();
-                                }
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error checking updates:', error);
-                    })
-                    .finally(() => {
-                        this.isCheckingUpdates = false;
-                        // Cek lagi dalam 30 detik
-                        setTimeout(this.checkUpdates, 30000);
-                    });
-            },
-            initCategorySelect() {
-                // Pindahkan jQuery code ke method Vue
-                $('#categorySelect').change(function() {
-                    const categoryId = $(this).val();
-                    const subcategorySelect = $('#subcategorySelect');
-                    
-                    if (categoryId) {
-                        subcategorySelect.prop('disabled', false);
-                        subcategorySelect.empty();
-                        subcategorySelect.append('<option value="">Pilih Aktivitas</option>');
-                        
-                        const subcategories = <?php echo json_encode($subcategories); ?>;
-                        const filtered = subcategories.filter(sub => sub.category_id == categoryId);
-                        
-                        filtered.forEach(sub => {
-                            subcategorySelect.append(
-                                `<option value="${sub.subcategory_id}">${sub.subcategory_name} (${sub.points} poin)</option>`
-                            );
-                        });
-                    } else {
-                        subcategorySelect.prop('disabled', true);
-                        subcategorySelect.empty();
-                        subcategorySelect.append('<option value="">Pilih Aktivitas</option>');
-                    }
-                });
-            }
-        },
-        mounted() {
-            window.addEventListener('resize', this.checkMobile);
-            this.checkMobile();
-            this.initCategorySelect();
-            
-            // Inisialisasi timestamp pertama
-            this.lastUpdate = new Date().toISOString();
-            
-            // Mulai pengecekan update hanya untuk mahasiswa
-            <?php if ($_SESSION['role'] === 'user'): ?>
-            this.checkUpdates();
-            <?php endif; ?>
-            
-            // Hentikan pengecekan saat tab tidak aktif
-            document.addEventListener('visibilitychange', () => {
-                if (document.hidden) {
-                    clearTimeout(this.updateTimer);
-                } else {
-                    this.checkUpdates();
-                }
-            });
-        },
-        beforeUnmount() {
-            // Cleanup
-            clearTimeout(this.updateTimer);
-            document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-        }
-    }).mount('#app');
+    // Atur ukuran iframe
+    iframe.onload = function() {
+        this.style.height = '80vh';
+    };
+}
 </script>
 </body>
 </html>

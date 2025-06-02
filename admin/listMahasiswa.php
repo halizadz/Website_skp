@@ -1,36 +1,20 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
-if (isset($_GET['check_update'])) {
-    header('Content-Type: application/json');
-    
-    $last_check = $_SESSION['last_check'] ?? date('Y-m-d H:i:s');
-    $user_id = $_SESSION['id'];
-    
-    // Cek update khusus untuk user ini saja (tidak semua data)
-    $query = "SELECT COUNT(*) FROM student_activities WHERE user_id = ? AND updated_at > ?";
-    $stmt = $con->prepare($query);
-    $stmt->bind_param("is", $user_id, $last_check);
-    $stmt->execute();
-    
-    $updated = $stmt->get_result()->fetch_row()[0] > 0;
-    $_SESSION['last_check'] = date('Y-m-d H:i:s');
-    
-    echo json_encode(['updated' => $updated]);
-    exit();
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('admin_session'); // HARUS sebelum session_start()
+    session_start();
 }
-// Redirect jika bukan admin
 if(!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../pages/login.php"); // Perhatikan path yang benar
+    header("Location: index.php?x=login"); // Perhatikan path yang benar
     exit();
 }
+
 
 // Koneksi database
 require_once __DIR__ . "/../config/db.php";
 
+
 // Inisialisasi variabel
-$search = trim($_GET['search'] ?? '');
+$search = trim($con->real_escape_string($_GET['search'] ?? ''));
 $page = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT, ['options' => ['default' => 1, 'min_range' => 1]]);
 $perPage = 10;
 $offset = ($page - 1) * $perPage;
@@ -54,9 +38,23 @@ function displayProfilePicture($profileData) {
         '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
     );
 }
-
-function isActivePage($pageName) {
-    return basename($_SERVER['PHP_SELF']) === $pageName;
+// Handle Form Submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
+    $data = [
+        'id' => (int)$_POST['id'],
+        'npm' => htmlspecialchars(trim($_POST['npm'])),
+        'nama' => htmlspecialchars(trim($_POST['nama'])),
+        'email' => filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL),
+        'prodi' => htmlspecialchars(trim($_POST['prodi']))
+    ];
+    
+    if (updateStudent($con, $data)) {
+        $_SESSION['notification'] = ['type' => 'success', 'message' => 'Data berhasil diperbarui!'];
+    } else {
+        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Gagal memperbarui data'];
+    }
+    header("Location: index.php?x=listMahasiswa");
+    exit();
 }
 
 // PROSES CRUD - Dipisahkan menjadi fungsi-fungsi
@@ -67,9 +65,34 @@ function updateStudent($con, $data) {
 }
 
 function deleteStudent($con, $id) {
-    $stmt = $con->prepare("DELETE FROM users WHERE id = ?");
-    $stmt->bind_param("i", $id);
-    return $stmt->execute();
+    // Mulai transaksi
+    $con->begin_transaction();
+    
+    try {
+        // 1. Hapus data di student_point_summary_real
+        $stmt1 = $con->prepare("DELETE FROM student_point_summary_real WHERE user_id = ?");
+        $stmt1->bind_param("i", $id);
+        $stmt1->execute();
+        
+        // 2. Hapus data di student_activities
+        $stmt2 = $con->prepare("DELETE FROM student_activities WHERE user_id = ?");
+        $stmt2->bind_param("i", $id);
+        $stmt2->execute();
+        
+        // 3. Hapus user
+        $stmt3 = $con->prepare("DELETE FROM users WHERE id = ?");
+        $stmt3->bind_param("i", $id);
+        $stmt3->execute();
+        
+        // Commit jika semua berhasil
+        $con->commit();
+        return true;
+    } catch (Exception $e) {
+        // Rollback jika ada error
+        $con->rollback();
+        error_log("Delete student error: " . $e->getMessage());
+        return false;
+    }
 }
 
 // Fungsi helper untuk hashing yang konsisten
@@ -89,24 +112,6 @@ function hashPassword($password) {
     }
 
 
-// Handle Form Submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
-    $data = [
-        'id' => (int)$_POST['id'],
-        'npm' => htmlspecialchars(trim($_POST['npm'])),
-        'nama' => htmlspecialchars(trim($_POST['nama'])),
-        'email' => filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL),
-        'prodi' => htmlspecialchars(trim($_POST['prodi']))
-    ];
-    
-    if (updateStudent($con, $data)) {
-        $_SESSION['notification'] = ['type' => 'success', 'message' => 'Data berhasil diperbarui!'];
-    } else {
-        $_SESSION['notification'] = ['type' => 'error', 'message' => 'Gagal memperbarui data'];
-    }
-    header("Location: listMahasiswa.php");
-    exit();
-}
 
 // Handle Actions
 if (isset($_GET['action'])) {
@@ -114,7 +119,7 @@ if (isset($_GET['action'])) {
     
     if (!$id) {
         $_SESSION['notification'] = ['type' => 'error', 'message' => 'ID tidak valid'];
-        header("Location: listMahasiswa.php");
+        header("Location: index.php?x=listMahasiswa");
         exit();
     }
 
@@ -136,7 +141,7 @@ if (isset($_GET['action'])) {
             break;
     }
     
-    header("Location: listMahasiswa.php");
+    header("Location: index.php?x=listMahasiswa");
     exit();
 }
 
@@ -144,22 +149,29 @@ if (isset($_GET['action'])) {
 function buildStudentQuery($search) {
     $query = "SELECT id, npm, nama, email, prodi, role FROM users WHERE role = 'user'";
     $params = [];
+    $types = ''; 
+
     
     if (!empty($search)) {
         $query .= " AND (npm LIKE ? OR nama LIKE ? OR email LIKE ? OR prodi LIKE ?)";
         $searchTerm = "%$search%";
         $params = array_fill(0, 4, $searchTerm);
+        $types = str_repeat('s', count($params));
     }
     
-    return ['query' => $query, 'params' => $params];
+    return ['query' => $query, 'params' => $params, 'types' => $types];
 }
 
 // Hitung total data
 $countData = buildStudentQuery($search);
-$stmt = $con->prepare(str_replace('SELECT id, npm', 'SELECT COUNT(*) as total', $countData['query']));
+$countQuery = "SELECT COUNT(*) as total FROM users WHERE role = 'user'";
+if (!empty($search)) {
+    $countQuery .= " AND (npm LIKE ? OR nama LIKE ? OR email LIKE ? OR prodi LIKE ?)";
+}
 
+$stmt = $con->prepare($countQuery);
 if (!empty($countData['params'])) {
-    $stmt->bind_param(str_repeat('s', count($countData['params'])), ...$countData['params']);
+    $stmt->bind_param($countData['types'], ...$countData['params']);
 }
 
 $stmt->execute();
@@ -171,10 +183,10 @@ $queryData = buildStudentQuery($search);
 $queryData['query'] .= " LIMIT ? OFFSET ?";
 $queryData['params'][] = $perPage;
 $queryData['params'][] = $offset;
+$queryData['types'] .= 'ii'; // Tambahkan tipe untuk limit dan offset (integer)
 
 $stmt = $con->prepare($queryData['query']);
-$types = str_repeat('s', count($queryData['params']) - 2) . 'ii'; // Semua string kecuali 2 terakhir (int)
-$stmt->bind_param($types, ...$queryData['params']);
+$stmt->bind_param($queryData['types'], ...$queryData['params']);
 $stmt->execute();
 $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -204,7 +216,7 @@ if (isset($_GET['edit'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/admin-dashboard.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/admin-dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -286,31 +298,26 @@ if (isset($_GET['edit'])) {
                 
                 <ul class="nav flex-column sidebar-menu">
                     <li class="nav-item">
-                        <a href="dashboard.php" class="nav-link <?php echo isActivePage('dashboard.php') ? 'active' : ''; ?>">
-                            <i class="fas fa-tachometer-alt"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="listMahasiswa.php" class="nav-link <?php echo isActivePage('listMahasiswa.php') ? 'active' : ''; ?>">
-                            <i class="fas fa-user-graduate"></i>
-                            <span>List Mahasiswa</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="Approve.php" class="nav-link <?php echo isActivePage('Approve.php') ? 'active' : ''; ?>">
-                            <i class="fas fa-chalkboard-teacher"></i>
-                            <span>Approve</span>
-                        </a>
-                    </li>
+                        <a href="index.php?x=dashboard" class="nav-link">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="index.php?x=listMahasiswa" class="nav-link active">
+                        <i class="fas fa-user-graduate"></i>
+                        <span>List Mahasiswa</span>
+                    </a>
+                    <a href="index.php?x=approve" class="nav-link">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                        <span>Approve</span>
+                    </a>
                 </ul>
-                
-                <div class="sidebar-footer p-3">
-                    <a href="../pages/logout.php" class="nav-link logout-btn">
+                    <div class="sidebar-footer p-3">
+                    <a href="index.php?x=logout" class="nav-link logout-btn">
                         <i class="fas fa-sign-out-alt"></i>
                         <span>Logout</span>
                     </a>
-                </div>
+                    </div>
+                    </div>
             </div>
 
 
@@ -344,7 +351,7 @@ if (isset($_GET['edit'])) {
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end profile-dropdown-menu">
                             <li>
-                            <a class="dropdown-item" href="../profile.php">
+                            <a class="dropdown-item" href="index.php?x=profile">
                                 <i class="fas fa-user-edit me-2"></i> Edit Profil
                             </a>
                             </li>
@@ -376,7 +383,7 @@ if (isset($_GET['edit'])) {
                 <h4 class="mb-0"><i class="fas fa-user-edit me-2"></i>Edit Data Mahasiswa</h4>
             </div>
             <div class="card-body">
-                <form method="POST" action="listMahasiswa.php">
+                <form method="POST" action="index.php?x=listMahasiswa">
                     <input type="hidden" name="id" value="<?= $editStudent['id'] ?>">
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -399,14 +406,16 @@ if (isset($_GET['edit'])) {
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Program Studi</label>
                             <select class="form-select form-select-lg" name="prodi" required>
-                                <option value="Teknik Informatika" <?= $editStudent['prodi'] === 'Teknik Informatika' ? 'selected' : '' ?>>Teknik Informatika</option>
-                                <option value="Sistem Informasi" <?= $editStudent['prodi'] === 'Sistem Informasi' ? 'selected' : '' ?>>Sistem Informasi</option>
-                                <option value="Teknik Komputer" <?= $editStudent['prodi'] === 'Teknik Komputer' ? 'selected' : '' ?>>Teknik Komputer</option>
+                                <option value="Pendidikan Matematika" <?= $editStudent['prodi'] === 'Pendidikan Matematika' ? 'selected' : '' ?>>Pendidikan Matematika</option>
+                                <option value="Pendidikan Bahasa Inggris" <?= $editStudent['prodi'] === 'Pendidikan Bahasa Inggris' ? 'selected' : '' ?>>Pendidikan Bahasa Inggris</option>
+                                <option value="Pendidikan Bahasa dan Sastra Indonesia" <?= $editStudent['prodi'] === 'Pendidikan Bahasa dan Sastra Indonesia' ? 'selected' : '' ?>>Pendidikan Bahasa dan Sastra Indonesia</option>
+                                <option value="Pendidikan Masyarakat" <?= $editStudent['prodi'] === 'Pendidikan Masyarakat' ? 'selected' : '' ?>>Pendidikan Masyarakat</option>
+                                <option value="Pendidikan Jasmani Kesehatan dan Rekreasi" <?= $editStudent['prodi'] === 'Pendidikan Jasmani Kesehatan dan Rekreasi' ? 'selected' : '' ?>>Pendidikan Jasmani Kesehatan dan Rekreasi</option>
                             </select>
                         </div>
                         <div class="col-12 mt-4">
                             <div class="d-flex justify-content-end gap-2">
-                                <a href="listMahasiswa.php" class="btn btn-secondary btn-lg">
+                                <a href="index.php?x=listMahasiswa" class="btn btn-secondary btn-lg">
                                     <i class="fas fa-times me-2"></i> Batal
                                 </a>
                                 <button type="submit" name="edit_student" class="btn btn-primary btn-lg">
@@ -429,20 +438,22 @@ if (isset($_GET['edit'])) {
                 <div class="card">
                     <div class="card-body">
                         <!-- Search Form -->
-                        <form method="get" class="mb-4">
-                            <div class="input-group">
-                                <input type="text" name="search" class="form-control" placeholder="Cari mahasiswa..." 
-                                    value="<?= htmlspecialchars($search) ?>">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                                <?php if (!empty($search)): ?>
-                                    <a href="listMahasiswa.php" class="btn btn-secondary">
-                                        <i class="fas fa-times"></i> Reset
-                                    </a>
-                                <?php endif; ?>
-                            </div>
-                        </form>
+                        <form method="get" action="index.php">
+    <input type="hidden" name="x" value="listMahasiswa">
+    <div class="input-group">
+        <input type="text" name="search" class="form-control" placeholder="Cari mahasiswa..." 
+            value="<?= htmlspecialchars($search) ?>">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-search"></i>
+        </button>
+        <?php if (!empty($search)): ?>
+            <a href="index.php?x=listMahasiswa" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Reset
+            </a>
+        <?php endif; ?>
+    </div>
+</form>
+
 
                         <!-- Tabel Data -->
                         <div class="card">
@@ -469,7 +480,7 @@ if (isset($_GET['edit'])) {
                                                     <td><?= htmlspecialchars($student['prodi']) ?></td>
                                                     <td>
                                                         <div class="btn-group btn-group-sm">
-                                                            <a href="?edit=<?= $student['id'] ?>" class="btn btn-warning">
+                                                            <a href="index.php?x=listMahasiswa&edit=<?= $student['id'] ?>" class="btn btn-warning">
                                                                 <i class="fas fa-edit"></i>
                                                             </a>
                                                             <button class="btn btn-info reset-btn" data-id="<?= $student['id'] ?>">
@@ -527,8 +538,8 @@ if (isset($_GET['edit'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
-    <script src="../assets/js/utils.js"></script>
-    <script src="../assets/js/script.js"></script>
+     <script src="<?= BASE_URL ?>/assets/js/utils.js"></script>
+    <script src="<?= BASE_URL ?>/assets/js/script.js"></script>
 
     <?php if ($notification): ?>
     <script>
@@ -544,39 +555,7 @@ if (isset($_GET['edit'])) {
     </script>
 <?php endif; ?>
 <script>
-// Fungsi untuk mengecek pembaruan data
-function checkUpdates() {
-    fetch('?check_update=1')
-        .then(response => {
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            return response.json();
-        })
-        .then(data => {
-            if (data.updated) {
-                // Notifikasi dengan opsi manual refresh
-                Swal.fire({
-                    title: 'Data Terbaru Tersedia',
-                    html: 'Versi lebih baru dari data tersedia.<br>Muat ulang sekarang?',
-                    icon: 'info',
-                    showCancelButton: true,
-                    confirmButtonText: 'Ya, Muat Ulang',
-                    cancelButtonText: 'Nanti',
-                    timer: 10000, // Auto-close setelah 10 detik
-                    timerProgressBar: true,
-                    allowOutsideClick: false
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        location.reload();
-                    }
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Gagal memeriksa pembaruan:', error);
-            setTimeout(checkUpdates, 60000); // Coba lagi dalam 60 detik jika error
-        });
-}
-
+     const defaultPassword = 'Un1v3rs1t4X!2024';
 // Fungsi untuk menangani aksi berisiko (delete/reset)
 function handleAction(action, id, message, defaultText) {
     Swal.fire({
@@ -590,16 +569,13 @@ function handleAction(action, id, message, defaultText) {
         reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
-            window.location.href = `listMahasiswa.php?action=${action}&id=${id}`;
+           window.location.href = `index.php?x=listMahasiswa&action=${action}&id=${id}`;
         }
     });
 }
 
 // Inisialisasi setelah DOM siap
 document.addEventListener('DOMContentLoaded', function() {
-    // Mulai pengecekan pembaruan
-    checkUpdates();
-    setInterval(checkUpdates, 30000); // Cek setiap 30 detik
 
     // Handler tombol reset password
     document.querySelectorAll('.reset-btn').forEach(btn => {
@@ -627,9 +603,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
-
-// Variabel global jika diperlukan
-const defaultPassword = 'Un1v3rs1t4X!2024';
 </script>
 </body>
 </html>

@@ -1,9 +1,10 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('user_session'); // HARUS sebelum session_start()
+    session_start();
+}
 if(!isset($_SESSION['role']) || $_SESSION['role'] != 'user'){
-    header("Location: ../pages/login.php");
+    header("Location: index.php?x=login");
     exit();
 }
 
@@ -12,7 +13,7 @@ function isActivePage($pageName) {
     return ($currentPage == $pageName) ? true : false;
 }
 
-require_once("../config/db.php");
+require_once __DIR__ . '/../config/db.php';  
 
 // Ambil data user
 $user = [];
@@ -29,6 +30,17 @@ if (isset($_SESSION['id'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     $profileData = $result->fetch_assoc();
+}
+
+function displayProfilePicture($profileData) {
+    if (!empty($profileData['foto_profil'])) {
+        $mimeType = $profileData['profile_picture_type'] ?? 'image/jpeg';
+        return 'data:' . $mimeType . ';base64,' . base64_encode($profileData['foto_profil']);
+    }
+
+    return 'data:image/svg+xml;base64,' . base64_encode(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
+    );
 }
 
 // Ambil kategori dan subkategori aktivitas
@@ -107,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'type' => 'success',
                     'message' => 'Aktivitas SKP berhasil ditambahkan dan menunggu persetujuan'
                 ];
-                header("Location: dashboard.php");
+                header("Location: index.php?x=dashboard");
                 exit();
             } else {
                 throw new Exception("Gagal menyimpan data ke database: " . $con->error);
@@ -131,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/admin-dashboard.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/admin-dashboard.css">
     
     <!-- Animate.css -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
@@ -191,19 +203,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
        <ul class="nav flex-column sidebar-menu">
             <li class="nav-item">
-                <a href="dashboard.php" class="nav-link">
+                <a href="index.php?x=dashboard" class="nav-link">
                     <i class="fas fa-tachometer-alt"></i>
                     <span>Dashboard</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="daftar_skp.php" class="nav-link">
+                <a href="index.php?x=daftar_skp" class="nav-link">
                     <i class="fas fa-list"></i>
                     <span>Daftar SKP</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="addSkp.php" class="nav-link active">
+                <a href="index.php?x=addSkp" class="nav-link active">
                     <i class="fas fa-plus-circle"></i>
                     <span>Tambah SKP</span>
                 </a>
@@ -212,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         
         <div class="sidebar-footer p-3">
-            <a href="../pages/logout.php" class="nav-link logout-btn">
+            <a href="index.php?x=logout" class="nav-link logout-btn">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </a>
@@ -228,8 +240,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="profile-container dropdown">
                         <div class="profile-trigger" data-bs-toggle="dropdown" aria-expanded="false">
                             <div class="profile-avatar">
-                                <?php if (!empty($user['foto_profil'])): ?>
-                                    <img src="<?php echo displayProfilePicture($user); ?>" 
+                                <?php if (!empty($profileData['foto_profil'])): ?>
+                                    <img src="<?php echo displayProfilePicture($profileData); ?>" 
                                         alt="Profile Picture" 
                                         class="profile-image">
                                 <?php else: ?>
@@ -245,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end profile-dropdown-menu">
                             <li>
-                                <a class="dropdown-item" href="profile.php">
+                                <a class="dropdown-item" href="index.php?x=profile">
                                     <i class="fas fa-user-edit me-2"></i> Edit Profil
                                 </a>
                             </li>
@@ -258,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Page Content -->
         <div class="container-fluid p-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3><i class="fas fa-plus-circle me-2"></i>Tambah Aktivitas SKP</h3>
+                <h3></i>Tambah Aktivitas SKP</h3>
 
                 </a>
             </div>
@@ -388,8 +400,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="../assets/js/utils.js"></script>
-<script src="../assets/js/script.js"></script>
+<script src="<?= BASE_URL ?>/assets/js/utils.js"></script>
+<script src="<?= BASE_URL ?>/assets/js/script.js"></script>
 
 <script>
 $(document).ready(function() {

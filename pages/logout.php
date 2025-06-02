@@ -1,9 +1,13 @@
-    <?php
-session_start();
-$_SESSION = array();
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Kosongkan semua data session
+$_SESSION = [];
 session_destroy();
 
-// Hapus cookie session
+// Hapus cookie session jika ada
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
     setcookie(session_name(), '', time() - 42000,
@@ -11,7 +15,8 @@ if (ini_get("session.use_cookies")) {
         $params["secure"], $params["httponly"]
     );
 }
-session_destroy();
-header("Location: login.php"); // Tambahkan ini
+
+// ✅ Redirect ke halaman login melalui router
+header("Location: index.php?x=login");
 exit();
 ?>

@@ -1,63 +1,59 @@
 <?php
-// error_reporting(E_ALL);
-// ini_set('display_errors', 1);
-
-// Cek session dengan cara yang lebih aman
-if (session_status() !== PHP_SESSION_NONE) {
+if (isset($_COOKIE['admin_session'])) {
+    session_name("admin_session");
+} elseif (isset($_COOKIE['user_session'])) {
+    session_name("user_session");
+}
+if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-define('BASE_URL', 'http://' . $_SERVER['HTTP_HOST'] . '/project_fkip');
 
-// Redirect ke login jika belum login
-if (!isset($_SESSION['level']) && basename($_SERVER['SCRIPT_NAME']) === 'index.php') {
-    header('Location: ' . BASE_URL . '/pages/login.php');
-    exit();
-}
 
-// Daftar halaman dengan require_once untuk menghindari duplikasi
-$available_pages = [
+define('BASE_URL', (isset($_SERVER['HTTPS']) ? "https" : "http") . '://' . $_SERVER['HTTP_HOST'] . '/project_fkip');
+
+$page = isset($_GET['x']) ? $_GET['x'] : 'dashboard';
+$routes = [
     'admin' => [
         'dashboard' => 'admin/dashboard.php',
         'listMahasiswa' => 'admin/listMahasiswa.php',
         'approve' => 'admin/Approve.php',
-        'statistics' => 'assets/statistics.php',
         'profile' => 'profile.php'
     ],
-    'mahasiswa' => [
+    'user' => [
         'dashboard' => 'mahasiswa/dashboard.php',
-        'skp' => 'tmp/daftar_skp.php',
-        'addSkp' => 'tmp/addSkp.php',
+        'daftar_skp' => 'mahasiswa/daftar_skp.php',
+        'addSkp' => 'mahasiswa/addSkp.php',
         'profile' => 'profile.php'
     ],
-    'common' => [
+    'public' => [
         'login' => 'pages/login.php',
         'logout' => 'pages/logout.php',
         'register' => 'pages/register.php',
-        'home' => 'index.php'
     ]
 ];
 
 
-// Handle halaman umum
-if (isset($available_pages['common'][$page])) {
-    require_once $available_pages['common'][$page];
-    exit();
+// Cek apakah halaman public
+if (isset($routes['public'][$page])) {
+    require_once $routes['public'][$page];
+    exit;
 }
 
-// Verifikasi login
-if (!isset($_SESSION['level'])) {
-    header('Location: ?x=login');
-    exit();
+// Cek apakah user sudah login
+if (!isset($_SESSION['role'])) {
+    header("Location: " . BASE_URL . "/index.php?x=login");
+    exit;
 }
 
-// Verifikasi akses role
-$role = $_SESSION['level'];
-if (!isset($available_pages[$role][$page])) {
-    header('Location: ?x=dashboard');
-    exit();
-}
+// Ambil role user
+$role = $_SESSION['role'];
 
-// Gunakan require_once untuk menghindari duplikasi memori
-require_once $available_pages[$role][$page];
-exit();
+// Cek apakah halaman sesuai dengan role
+if (isset($routes[$role][$page])) {
+    require_once $routes[$role][$page];
+} else {
+    // Jika tidak cocok, arahkan ke dashboard default
+    header("Location: " . BASE_URL . "/index.php?x=dashboard");
+}
+exit;

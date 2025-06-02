@@ -1,39 +1,18 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
-if (isset($_GET['check_update'])) {
-    header('Content-Type: application/json');
-    
-    $last_check = $_SESSION['last_check'] ?? date('Y-m-d H:i:s');
-    $user_id = $_SESSION['id'];
-    
-    // Cek update khusus untuk user ini saja (tidak semua data)
-    $query = "SELECT COUNT(*) FROM student_activities WHERE user_id = ? AND updated_at > ?";
-    $stmt = $con->prepare($query);
-    $stmt->bind_param("is", $user_id, $last_check);
-    $stmt->execute();
-    
-    $updated = $stmt->get_result()->fetch_row()[0] > 0;
-    $_SESSION['last_check'] = date('Y-m-d H:i:s');
-    
-    echo json_encode(['updated' => $updated]);
-    exit();
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('admin_session'); // HARUS sebelum session_start()
+    session_start();
 }
+
 if(!isset($_SESSION['role']) || $_SESSION['role'] != 'admin'){
-    header("Location: ../pages/login.php");
+    header("Location: index.php?x=login");
     exit();
 }
 
-// Fungsi untuk mengecek halaman aktif
-function isActivePage($pageName) {
-    $currentPage = basename($_SERVER['PHP_SELF']);
-    return ($currentPage == $pageName) ? true : false;
-}
 
-require_once("../config/db.php");       
-require_once("../config/statistics.php");
-require_once("../assets/php/my_profile.php");
+require_once __DIR__ . '/../config/db.php';    
+require_once __DIR__ . '/../config/statistics.php';
+    
 
 
 // Ambil data statistik awal
@@ -50,6 +29,16 @@ if (isset($_SESSION['id'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     $profileData = $result->fetch_assoc();
+}
+function displayProfilePicture($profileData) {
+    if (!empty($profileData['foto_profil'])) {
+        $mimeType = $profileData['profile_picture_type'] ?? 'image/jpeg';
+        return 'data:' . $mimeType . ';base64,' . base64_encode($profileData['foto_profil']);
+    }
+    
+    return 'data:image/svg+xml;base64,' . base64_encode(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
+    );
 }
 
 
@@ -74,7 +63,8 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="../assets/css/admin-dashboard.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/admin-dashboard.css">
+
     
     <!-- Animate.css -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
@@ -101,32 +91,29 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
             
             <ul class="nav flex-column sidebar-menu">
                 <li class="nav-item">
-                    <a href="dashboard.php" class="nav-link <?php echo isActivePage('admin/dashboard.php') ? 'active' : ''; ?>">
-                        <i class="fas fa-tachometer-alt"></i>
-                        <span>Dashboard</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="listMahasiswa.php" class="nav-link <?php echo isActivePage('admin/listMahasiswa.php') ? 'active' : ''; ?>">
-                        <i class="fas fa-user-graduate"></i>
-                        <span>List Mahasiswa</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="Approve.php" class="nav-link <?php echo isActivePage('admin/Approve.php') ? 'active' : ''; ?>">
-                        <i class="fas fa-chalkboard-teacher"></i>
-                        <span>Approve</span>
-                    </a>
+                    <a href="index.php?x=dashboard" class="nav-link active">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="index.php?x=listMahasiswa" class="nav-link">
+                    <i class="fas fa-user-graduate"></i>
+                    <span>List Mahasiswa</span>
+                </a>
+                <a href="index.php?x=approve" class="nav-link">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                    <span>Approve</span>
+                </a>
+
                 </li>
             </ul>
-            
             <div class="sidebar-footer p-3">
-                
-                <a href="../pages/logout.php" class="nav-link logout-btn">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
+                    <a href="index.php?x=logout" class="nav-link logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </div>
+                    </div>
+        </div>
         </div>
 
         <!-- Main Content -->
@@ -159,7 +146,7 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end profile-dropdown-menu">
                             <li>
-                            <a class="dropdown-item" href="../profile.php">
+                            <a class="dropdown-item" href="index.php?x=profile">
                                 <i class="fas fa-user-edit me-2"></i> Edit Profil
                             </a>
                             </li>
@@ -184,7 +171,7 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
                             <div class="stat-icon">
                                 <i class="fas fa-users"></i>
                             </div>
-                            <div class="stat-number counter">{{formatNumber(dashboardData.totalMahasiswa)}}</div>
+                            <div class="stat-number counter">{{dashboardData.totalMahasiswa}}</div>
                             <div class="stat-label">Total Mahasiswa</div>
                         </div>
                         
@@ -192,7 +179,7 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
                             <div class="stat-icon">
                                 <i class="fas fa-user-plus"></i>
                             </div>
-                            <div class="stat-number counter">{{formatNumber(dashboardData.pendaftarBulanIni)}}</div>
+                            <div class="stat-number counter">{{dashboardData.pendaftarBulanIni}}</div>
                             <div class="stat-label">Pendaftar Bulan Ini</div>
                         </div>
                     </div>
@@ -202,15 +189,11 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
                     <div class="chart-card animate__animated animate__fadeInUp">
                         <div class="chart-header">
                             <h4 class="chart-title">Distribusi Mahasiswa per Jurusan</h4>
-                            <div class="chart-actions">
-                                <button class="btn btn-sm btn-outline-secondary chart-export" @click="handleExportChart('chartJurusan')">
-                                    <i class="fas fa-download"></i>
-                                </button>
-                            </div>
                         </div>
                         <div class="chart-container">
-                             <canvas ref="departmentChartRef" id="chartJurusan" style="display: block; width: 100%; height: 300px;"></canvas>
-                        </div>
+  <canvas ref="departmentChartRef" style="display: block; width: 100%; height: 300px;"></canvas>
+</div>
+</div>
                     </div>
                 
                     <!-- Pendaftaran Terbaru -->
@@ -218,7 +201,7 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h5 class="card-title m-0">Pendaftaran Terbaru</h5>
-                                <a href="listMahasiswa.php" class="btn btn-sm btn-primary">Lihat Semua</a>
+                                <a href="index.php?x=listMahasiswa" class="btn btn-sm btn-primary">Lihat Semua</a>
                             </div>
                             <div class="table-responsive">
                                 <table class="table table-hover">
@@ -228,7 +211,6 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
                                             <th>NPM</th>
                                             <th>Program Studi</th>
                                             <th>Tanggal Daftar</th>
-                                            <th>Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -238,34 +220,11 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
                                             <td><?php echo htmlspecialchars($student['npm']); ?></td>
                                             <td><?php echo htmlspecialchars($student['prodi']); ?></td>
                                             <td><?php echo date('d M Y', strtotime($student['created_at'])); ?></td>
-                                            <td>
-                                                <button class="btn btn-sm btn-outline-primary view-btn" data-id="<?php echo htmlspecialchars($student['npm']); ?>">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </td>
                                         </tr>
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        
-            <!-- Modal View Student -->
-            <div class="modal fade" id="studentModal" tabindex="-1" aria-labelledby="studentModalLabel" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="studentModalLabel">Detail Mahasiswa</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body" id="studentDetails">
-                            <!-- Detail mahasiswa akan dimuat di sini -->
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
                         </div>
                     </div>
                 </div>
@@ -278,68 +237,20 @@ $values_jurusan = array_column($dataJurusan, 'jumlah');
 
             <!-- Load file JS sebagai module -->
             <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-
-            
-
+                         <script src="<?= BASE_URL ?>/assets/js/utils.js"></script>
+<script src="<?= BASE_URL ?>/assets/js/chart.js"></script>
             <script>
-// Fungsi untuk mengecek pembaruan data
-function checkUpdates() {
-    fetch('?check_update=1')
-        .then(r => {
-            if (!r.ok) throw new Error('Network response was not ok');
-            return r.json();
-        })
-        .then(data => {
-            if (data.updated) {
-                // Tampilkan notifikasi sebelum reload
-                Swal.fire({
-                    title: 'Data Diperbarui',
-                    text: 'Ada pembaruan data terbaru. Akan memuat ulang...',
-                    icon: 'info',
-                    timer: 2000,
-                    showConfirmButton: false
-                }).then(() => {
-                    location.reload();
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Error checking updates:', error);
-            // Coba lagi dalam 60 detik jika error
-            setTimeout(checkUpdates, 60000);
-        });
-}
+            // Inisialisasi data dan mulai pengecekan
+            window.serverData = {
+                totalMahasiswa: <?php echo json_encode((int)$totalMahasiswa); ?>,
+                pendaftarBulanIni: <?php echo json_encode((int)$pendaftarBulanIni); ?>,
+                labels_jurusan: <?php echo isset($labels_jurusan) ? json_encode($labels_jurusan) : '[]'; ?>,
+                values_jurusan: <?php echo isset($values_jurusan) ? json_encode($values_jurusan) : '[]'; ?>,
+                recentRegistrations: <?php echo isset($recentRegistrations) ? json_encode($recentRegistrations) : '[]'; ?>
+            };
 
-// Inisialisasi data dan mulai pengecekan
-window.serverData = {
-    totalMahasiswa: <?php echo json_encode((int)$totalMahasiswa); ?>,
-    pendaftarBulanIni: <?php echo json_encode((int)$pendaftarBulanIni); ?>,
-    labels_jurusan: <?php echo isset($labels_jurusan) ? json_encode($labels_jurusan) : '[]'; ?>,
-    values_jurusan: <?php echo isset($values_jurusan) ? json_encode($values_jurusan) : '[]'; ?>,
-    recentRegistrations: <?php echo isset($recentRegistrations) ? json_encode($recentRegistrations) : '[]'; ?>
-};
-
-console.log("Data from PHP:", window.serverData);
-
-// Mulai pengecekan pertama kali
-checkUpdates();
-
-// Jadwalkan pengecekan berkala setiap 30 detik
-const updateInterval = setInterval(checkUpdates, 30000);
-
-// Optional: Hentikan pengecekan saat tab tidak aktif
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        clearInterval(updateInterval);
-    } else {
-        checkUpdates(); // Langsung cek saat tab aktif kembali
-        updateInterval = setInterval(checkUpdates, 30000);
-    }
-});
-</script>
-
-        <script src="../assets/js/utils.js"></script>
-        <script src="../assets/js/chart.js"></script>
-        <script src="../assets/js/script.js"></script>
+            console.log('Server Data:', window.serverData);
+            </script>
+<script src="<?= BASE_URL ?>/assets/js/script.js"></script>
     </body>
 </html>

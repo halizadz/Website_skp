@@ -44,21 +44,21 @@ function exportChart(canvasElement, filename) {
     imageLink.click();
 }
 
-function animateCounters() {
-    console.log('Starting counter animation...');
-    const counters = document.querySelectorAll('.counter');
+function animateCounters(targetValues = []) {
+    const counters = document.querySelectorAll('.stat-number.counter');
     
-    if (!counters.length) {
-        console.warn('No counter elements found');
+    if (!counters.length || counters.length !== targetValues.length) {
+        console.warn('Counter elements not found or count mismatch');
         return;
     }
 
-    counters.forEach(counter => {
-        const target = parseInt(counter.textContent.replace(/,/g, '')) || 0;
-        console.log(`Animating counter from 0 to ${target}`);
-        
+    counters.forEach((counter, index) => {
+        const target = targetValues[index] || 0;
         let current = 0;
-        const increment = Math.max(1, Math.ceil(target / 100));
+        const increment = Math.max(1, Math.ceil(target / 50));
+        
+        // Reset counter untuk animasi bersih
+        counter.textContent = '0';
         
         const timer = setInterval(() => {
             current += increment;
@@ -67,50 +67,8 @@ function animateCounters() {
                 current = target;
             }
             counter.textContent = formatNumber(current);
-        }, 10);
+        }, 20);
     });
-}
-
-// Profile picture utilities
-function uploadProfilePicture(formData) {
-    return fetch('upload_profile.php', {
-        method: 'POST',
-        body: formData,
-        credentials: 'same-origin'
-    })
-    .then(response => response.json())
-    .catch(error => {
-        console.error('Upload error:', error);
-        return { success: false, message: 'Network error' };
-    });
-}
-
-function removeProfilePicture() {
-    return fetch('upload_profile.php', {
-        method: 'POST',
-        credentials: 'same-origin'
-    })
-    .then(response => response.json())
-    .catch(error => {
-        console.error('Remove error:', error);
-        return { success: false, message: 'Network error' };
-    });
-}
-
-function previewProfilePicture(input, previewElement) {
-    const file = input.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            if (previewElement.tagName === 'IMG') {
-                previewElement.src = e.target.result;
-            } else {
-                // Jika previewElement adalah div
-                previewElement.innerHTML = `<img src="${e.target.result}" class="rounded-circle" style="width:150px;height:150px;object-fit:cover;">`;
-            }
-        };
-        reader.readAsDataURL(file);
-    }
 }
 
 // Expose to global namespace
@@ -122,9 +80,6 @@ if (!window.$dashboard) {
             formatDate,
             exportChart,
             animateCounters,
-            uploadProfilePicture,
-            removeProfilePicture,
-            previewProfilePicture
         },
         charts: {}
     };
@@ -135,14 +90,7 @@ if (!window.$dashboard) {
         formatDate,
         exportChart,
         animateCounters,
-        uploadProfilePicture,
-        removeProfilePicture,
-        previewProfilePicture
     };
-}else {
-    window.$dashboard.utils.uploadProfilePicture = uploadProfilePicture;
-    window.$dashboard.utils.removeProfilePicture = removeProfilePicture;
-    window.$dashboard.utils.previewProfilePicture = previewProfilePicture;
 }
 
 console.log('Dashboard utilities initialized');

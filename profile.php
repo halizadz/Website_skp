@@ -1,19 +1,15 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 if(!isset($_SESSION['role'])) {
-    header("Location: pages/login.php");
+    header("Location: index.php?x=login");
     exit();
 }
 
-function isActivePage($pageName) {
-    return basename($_SERVER['PHP_SELF']) === $pageName;
-}
-
-include(__DIR__ . "/config/db.php");
-include(__DIR__ . "/assets/php/my_profile.php");
+require_once __DIR__ . '/config/db.php'; 
+require_once __DIR__ . '/assets/php/my_profile.php'; 
 
 $profileData = [];
 if (isset($_SESSION['id'])) {
@@ -40,7 +36,7 @@ if (isset($_SESSION['id'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="assets/css/admin-dashboard.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/admin-dashboard.css">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -63,19 +59,19 @@ if (isset($_SESSION['id'])) {
                     
                     <ul class="nav flex-column sidebar-menu">
                         <li class="nav-item">
-                            <a href="admin/dashboard.php" class="nav-link <?php echo isActivePage('admin/dashboard.php') ? 'active' : ''; ?>">
+                            <a href="index.php?x=dashboard" class="nav-link">
                                 <i class="fas fa-tachometer-alt"></i>
                                 <span>Dashboard</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="admin/listMahasiswa.php" class="nav-link <?php echo isActivePage('admin/listMahasiswa.php') ? 'active' : ''; ?>">
+                            <a href="index.php?x=listMahasiswa" class="nav-link">
                                 <i class="fas fa-user-graduate"></i>
                                 <span>List Mahasiswa</span>
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="admin/Approve.php" class="nav-link <?php echo isActivePage('admin/Approve.php') ? 'active' : ''; ?>">
+                            <a href="index.php?x=Approve" class="nav-link">
                                 <i class="fas fa-chalkboard-teacher"></i>
                                 <span>Approve</span>
                             </a>
@@ -83,7 +79,7 @@ if (isset($_SESSION['id'])) {
                     </ul>
                     
                     <div class="sidebar-footer p-3">
-                        <a href="pages/logout.php" class="nav-link logout-btn">
+                        <a href="index.php?x=logout" class="nav-link logout-btn">
                             <i class="fas fa-sign-out-alt"></i>
                             <span>Logout</span>
                         </a>
@@ -104,34 +100,34 @@ if (isset($_SESSION['id'])) {
             
             <ul class="nav flex-column sidebar-menu">
                 <li class="nav-item">
-                    <a href="mahasiswa/dashboard.php" class="nav-link active"> <!-- Removed PHP check, just set active -->
+                    <a href="index.php?x=dashboard" class="nav-link">
                         <i class="fas fa-tachometer-alt"></i>
                         <span>Dashboard</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="mahasiswa/daftar_skp.php" class="nav-link">
-                        <i class="fas fa-list"></i> <!-- Changed icon -->
-                        <span>Daftar SKP</span> <!-- Changed text -->
+                    <a href="index.php?x=daftar_skp" class="nav-link">
+                        <i class="fas fa-list"></i> 
+                        <span>Daftar SKP</span> 
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="mahasiswa/addSkp.php" class="nav-link">
-                        <i class="fas fa-plus-circle"></i> <!-- Changed icon -->
-                        <span>Tambah SKP</span> <!-- Changed text -->
+                    <a href="index.php?x=addSkp" class="nav-link">
+                        <i class="fas fa-plus-circle"></i> 
+                        <span>Tambah SKP</span> 
                     </a>
                 </li>
             </ul>
             
             <div class="sidebar-footer p-3">
-                <a href="pages/logout.php" class="nav-link logout-btn">
+                <a href="index.php?x=logout" class="nav-link logout-btn">
                     <i class="fas fa-sign-out-alt"></i>
                     <span>Logout</span>
                 </a>
             </div>
         </div>
     <?php } else {
-        header("Location: pages/login.php");
+        header("Location: index.php?x=login");
         exit();
     } ?>
     </div>
@@ -163,18 +159,18 @@ if (isset($_SESSION['id'])) {
                             <div class="profile-info">
                             <?php if ($_SESSION['role'] === 'admin'): ?>
                                 <!-- Admin View -->
-                                <div class="profile-name"><?php echo htmlspecialchars($_SESSION['nama'] ?? 'Admin'); ?></div>
+                                <div class="profile-name"><?php echo htmlspecialchars($profileData['nama'] ?? 'admin'); ?></div>
                                 <div class="profile-role">Administrator</div>
                             <?php else: ?>
                                 <!-- Regular User View -->
-                                <div class="profile-name"><?php echo htmlspecialchars($user['nama'] ?? 'User'); ?></div>
-                                <div class="profile-role"><?php echo htmlspecialchars($user['prodi'] ?? 'Mahasiswa'); ?></div>
+                                <div class="profile-name"><?php echo htmlspecialchars($profileData['nama'] ?? 'User'); ?></div>
+                                <div class="profile-role"><?php echo htmlspecialchars($profileData['prodi'] ?? 'user'); ?></div>
                             <?php endif; ?>
                         </div>
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end profile-dropdown-menu">
                             <li>
-                            <a class="dropdown-item" href="profile.php">
+                            <a class="dropdown-item" href="index.php?x=profile">
                                 <i class="fas fa-user-edit me-2"></i> Edit Profil
                             </a>
                             </li>
@@ -191,16 +187,17 @@ if (isset($_SESSION['id'])) {
                 </div>
                 <div class="card animate__animated animate__fadeIn">
                     <div class="card-body">
-                        <form method="POST" enctype="multipart/form-data" id="profileForm" action="profile.php">
+                        <form method="POST" enctype="multipart/form-data" id="profileForm" action="index.php?x=profile">
                             <div class="row">
                             <div class="col-md-4 text-center">
                                 <div class="profile-picture-container">
                                     <!-- Container untuk preview gambar -->
                                     <div id="profilePicturePreview" onclick="document.getElementById('foto_profil').click()">
                                         <?php if (!empty($profileData['foto_profil'])): ?>
-                                            <img src="data:<?php echo htmlspecialchars($profileData['profile_picture_type']); ?>;base64,<?php echo base64_encode($profileData['foto_profil']); ?>" 
-                                                alt="Profile Picture" 
-                                                style="width:100%; height:100%; object-fit:cover;">
+                                            <img id="previewImg"
+                                            src="data:<?= htmlspecialchars($profileData['profile_picture_type']) ?>;base64,<?= base64_encode($profileData['foto_profil']) ?>"
+                                            alt="Profile Picture"
+                                            style="width:100%; height:100%; object-fit:cover;">
                                         <?php else: ?>
                                             <i class="fas fa-user" style="font-size: 4rem; color: #6c757d;"></i>
                                         <?php endif; ?>
@@ -247,21 +244,21 @@ if (isset($_SESSION['id'])) {
                                         </div>
                                     </div>
                                     
-                                    <!-- Tambahkan di form profile.php -->
-<div class="mb-3">
-    <label for="old_password" class="form-label">Password Lama</label>
-    <input type="password" class="form-control" id="old_password" name="old_password">
-</div>
+                                   
+                                    <div class="mb-3">
+                                        <label for="old_password" class="form-label">Password Lama</label>
+                                        <input type="password" class="form-control" id="old_password" name="old_password">
+                                    </div>
 
-<div class="mb-3">
-    <label for="password" class="form-label">Password Baru</label>
-    <input type="password" class="form-control" id="password" name="password">
-</div>
+                                    <div class="mb-3">
+                                        <label for="password" class="form-label">Password Baru</label>
+                                        <input type="password" class="form-control" id="password" name="password">
+                                    </div>
 
-<div class="mb-3">
-    <label for="password_confirm" class="form-label">Konfirmasi Password Baru</label>
-    <input type="password" class="form-control" id="password_confirm" name="password_confirm">
-</div>
+                                    <div class="mb-3">
+                                        <label for="password_confirm" class="form-label">Konfirmasi Password Baru</label>
+                                        <input type="password" class="form-control" id="password_confirm" name="password_confirm">
+                                    </div>
                                     
                                     <button type="submit" class="btn btn-primary">
                                         <i class="fas fa-save"></i> Save Profile
@@ -280,8 +277,7 @@ if (isset($_SESSION['id'])) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Vue.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
-    <script src="assets/js/utils.js"></script>
-    <script src="assets/js/script.js"></script>
+    <script src="<?= BASE_URL ?>/assets/js/utils.js"></script>
 
     <script>
 const { createApp, ref, onMounted } = Vue;
@@ -306,6 +302,10 @@ createApp({
                     img.style.objectFit = 'cover';
                     preview.appendChild(img);
                 }
+                const img = document.getElementById('previewImg');
+        if (img) {
+            img.src = e.target.result;
+        }
             };
             reader.readAsDataURL(file);
         };

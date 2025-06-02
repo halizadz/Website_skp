@@ -1,51 +1,17 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
-if (isset($_GET['check_update'])) {
-    header('Content-Type: application/json');
-    
-    $last_check = $_SESSION['last_check'] ?? date('Y-m-d H:i:s');
-    $user_id = $_SESSION['id'];
-    
-    // Cek update khusus untuk user ini saja (tidak semua data)
-    $query = "SELECT COUNT(*) FROM student_activities WHERE user_id = ? AND updated_at > ?";
-    $stmt = $con->prepare($query);
-    $stmt->bind_param("is", $user_id, $last_check);
-    $stmt->execute();
-    
-    $updated = $stmt->get_result()->fetch_row()[0] > 0;
-    $_SESSION['last_check'] = date('Y-m-d H:i:s');
-    
-    echo json_encode(['updated' => $updated]);
-    exit();
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('admin_session'); // HARUS sebelum session_start()
+    session_start();
 }
+
 if(!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../pages/login.php");
+    header("Location:index.php?x=login");
     exit();
 }
 
 
-function isActivePage($pageName) {
-    return basename($_SERVER['PHP_SELF']) === $pageName;
-}
+require_once __DIR__ . '/../config/db.php';  
 
-include(__DIR__ . "/../config/db.php");
-
-function checkForUpdates($con) {
-    $lastUpdate = $con->query("SELECT MAX(updated_at) as last_update FROM student_activities WHERE status = 'pending'")->fetch_assoc()['last_update'];
-    return [
-        'has_updates' => ($_SESSION['last_update_check'] != $lastUpdate),
-        'last_update' => $lastUpdate
-    ];
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['check_updates'])) {
-    header('Content-Type: application/json');
-    $updateInfo = checkForUpdates($con);
-    echo json_encode($updateInfo);
-    exit();
-}
 
 // Ambil data profil admin
 $profileData = [];
@@ -56,10 +22,6 @@ if (isset($_SESSION['id'])) {
     $result = $stmt->get_result();
     $profileData = $result->fetch_assoc();
 }
-
-$lastUpdateTime = $con->query("SELECT MAX(updated_at) as last_update FROM student_activities")->fetch_assoc()['last_update'];
-$_SESSION['last_update_check'] = $_SESSION['last_update_check'] ?? $lastUpdateTime;
-$hasUpdates = ($_SESSION['last_update_check'] != $lastUpdateTime);
 
 
 function displayProfilePicture($profileData) {
@@ -80,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'type' => 'error',
             'message' => 'Invalid request: missing activity_id or action'
         ];
-        header("Location: Approve.php");
+        header("Location: index.php?x=approve");
         exit();
     }
     
@@ -167,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'type' => 'error',
                 'message' => 'Harap isi alasan penolakan'
             ];
-            header("Location: Approve.php#activity-" . $activity_id);
+            header("Location: index.php?x=approve#activity-" . $activity_id);
             exit();
         }
         
@@ -217,8 +179,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Redirect back to the page
-    header("Location: Approve.php#activity-" . $activity_id);
+    header("Location: index.php?x=approve#activity-" . $activity_id);
     exit();
+
 }
 
 // Ambil data aktivitas yang perlu disetujui
@@ -274,7 +237,7 @@ unset($_SESSION['notification']);
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="../assets/css/admin-dashboard.css">
+   <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/admin-dashboard.css">
 
     <!-- Vue.js -->
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
@@ -329,27 +292,24 @@ unset($_SESSION['notification']);
                 
                 <ul class="nav flex-column sidebar-menu">
                     <li class="nav-item">
-                        <a href="dashboard.php" class="nav-link <?php echo isActivePage('dashboard.php') ? 'active' : ''; ?>">
-                            <i class="fas fa-tachometer-alt"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="listMahasiswa.php" class="nav-link <?php echo isActivePage('listMahasiswa.php') ? 'active' : ''; ?>">
-                            <i class="fas fa-user-graduate"></i>
-                            <span>List Mahasiswa</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="Approve.php" class="nav-link <?php echo isActivePage('Approve.php') ? 'active' : ''; ?>">
-                            <i class="fas fa-chalkboard-teacher"></i>
-                            <span>Approve</span>
-                        </a>
+                        <a href="index.php?x=dashboard" class="nav-link">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="index.php?x=listMahasiswa" class="nav-link">
+                    <i class="fas fa-user-graduate"></i>
+                    <span>List Mahasiswa</span>
+                </a>
+                <a href="index.php?x=approve" class="nav-link active">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                    <span>Approve</span>
+                </a>
+
                     </li>
                 </ul>
                 
                 <div class="sidebar-footer p-3">
-                    <a href="pages/logout.php" class="nav-link logout-btn">
+                    <a href="index.php?x=logout" class="nav-link logout-btn">
                         <i class="fas fa-sign-out-alt"></i>
                         <span>Logout</span>
                     </a>
@@ -385,7 +345,7 @@ unset($_SESSION['notification']);
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end profile-dropdown-menu">
                             <li>
-                            <a class="dropdown-item" href="../profile.php">
+                            <a class="dropdown-item" href="index.php?x=profile">
                                 <i class="fas fa-user-edit me-2"></i> Edit Profil
                             </a>
                             </li>
@@ -471,7 +431,7 @@ unset($_SESSION['notification']);
                                             
                                             <!-- Form untuk submit approve/reject -->
                                             <div id="activity-<?= $activity['activity_id'] ?>">
-                                            <form method="post" action="Approve.php" class="activity-form">
+                                            <form method="post" action="index.php?x=approve" class="activity-form">
                                                 <input type="hidden" name="activity_id" value="<?= $activity['activity_id'] ?>">
                                                 <input type="hidden" name="action" id="action-type-<?= $activity['activity_id'] ?>">
                                                 
@@ -530,33 +490,12 @@ unset($_SESSION['notification']);
 
         <!-- Bootstrap Bundle with Popper -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="<?= BASE_URL ?>/assets/js/utils.js"></script>
+    <script src="<?= BASE_URL ?>/assets/js/script.js"></script>
         
         <!-- Vue.js Application -->
  <!-- Add this script at the bottom of your file, before the closing </body> tag -->
 <script>
-  function checkUpdates() {
-    fetch(window.location.pathname + '?check_update=1')
-        .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
-            return response.json();
-        })
-        .then(data => {
-            if (data.updated) {
-                // Tampilkan notifikasi bahwa ada pembaruan
-                const shouldReload = confirm('Data telah diperbarui. Muat ulang halaman?');
-                if (shouldReload) {
-                    location.reload();
-                }
-            }
-            // Cek lagi dalam 30 detik
-            setTimeout(checkUpdates, 30000);
-        })
-        .catch(error => {
-            console.error('Error checking updates:', error);
-            // Coba lagi dalam 60 detik jika error
-            setTimeout(checkUpdates, 60000);
-        });
-}
 document.addEventListener('DOMContentLoaded', function() {
     // Handle approve button clicks
     document.querySelectorAll('.approve-btn').forEach(btn => {
@@ -659,14 +598,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 500);
         <?php endif; ?>
     <?php endif; ?>
-    checkUpdates();
     
-    // Untuk Vue.js apps
-    if (typeof app !== 'undefined') {
-        app.mounted = function() {
-            checkUpdates();
-        }
-    } 
 });
 
 </script>

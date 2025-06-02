@@ -81,12 +81,15 @@ if (!window.$dashboard) {
         charts: {
             initMonthlyChart,
             getMonthlyChartOptions,
+            initDepartmentChart, 
         }
     };
 } else if (!window.$dashboard.charts) {
     window.$dashboard.charts = {
         initMonthlyChart,
         getMonthlyChartOptions,
+        initDepartmentChart, 
     };
 }
+
 console.log('Dashboard chart utilities initialized');

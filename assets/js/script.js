@@ -58,82 +58,99 @@ createApp({
             }
         };
 
-        const initCharts = async () => {
-            await nextTick();
-            
-            if (!document.getElementById('chartJurusan')) {
-                return;
-            }
+const initCharts = async () => {
+    await nextTick();
+    
+    // Fallback 1: Cek ref Vue
+    let canvas = departmentChartRef.value;
+    
+    // Fallback 2: Jika ref gagal, cari manual
+    if (!canvas) {
+        console.warn("Vue ref failed, trying document.querySelector...");
+        canvas = document.querySelector('canvas');
+    }
+    
+    // Fallback 3: Jika masih tidak ditemukan
+    if (!canvas) {
+    console.error("Canvas tidak ditemukan setelah semua upaya");
+    return;
+  }
 
-            const jurusanCanvas = document.getElementById('chartJurusan');
-            if (!jurusanCanvas) {
-                console.error("Error: Element #chartJurusan tidak ditemukan");
-                return;
+    // Pastikan data tersedia
+    if (!dashboardData.value.labels_jurusan?.length) {
+        console.error("Data jurusan kosong");
+        return;
+    }
+
+    // Inisialisasi chart
+    try {
+        if (chartJurusan) chartJurusan.destroy();
+        
+        chartJurusan = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: dashboardData.value.labels_jurusan,
+                datasets: [{
+                    data: dashboardData.value.values_jurusan,
+                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
             }
-          
-            jurusanCanvas.width = 800;
-            jurusanCanvas.height = 500;
-            
-            if (!dashboardData.value.labels_jurusan?.length) {
-                console.error("Error: Data jurusan kosong");
-                return;
-            }
-          
-            if (chartJurusan) chartJurusan.destroy();
-          
-            try {
-                chartJurusan = new Chart(jurusanCanvas, {
-                    type: 'doughnut',
-                    data: {
-                        labels: dashboardData.value.labels_jurusan,
-                        datasets: [{
-                            data: dashboardData.value.values_jurusan,
-                            backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc'],
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'right'
-                            }
-                        }
-                    }
-                });
-                console.log("Chart jurusan berhasil dirender!");
-            } catch (error) {
-                console.error("Gagal render chart:", error);
-            }
-        };
+        });
+    } catch (error) {
+        console.error("Chart error:", error);
+    }
+};
           
         // Load data from server
-        const loadData = () => {
-            if (!window.location.pathname.includes('dashboard.php')) return;
+const loadData = () => {
+    if (!window.location.href.includes('x=dashboard')) {
+    console.log('Skipping load for non-dashboard page');
+    return;
+}
+    console.log("Data dari PHP:", window.serverData);
 
-            if (!window.serverData) {
-                console.warn('No serverData available');
-                return;
-            }
+    // Validasi serverData
+    if (!window.serverData) {
+        console.error('Error: window.serverData is undefined');
+        return;
+    }
 
-            dashboardData.value = {
-                totalMahasiswa: parseInt(window.serverData.totalMahasiswa) || 0,
-                pendaftarBulanIni: parseInt(window.serverData.pendaftarBulanIni) || 0,
-                labels_jurusan: Array.isArray(window.serverData.labels_jurusan) ? 
-                    [...window.serverData.labels_jurusan] : [],
-                values_jurusan: Array.isArray(window.serverData.values_jurusan) ? 
-                    window.serverData.values_jurusan.map(Number) : [],
-                recentRegistrations: Array.isArray(window.serverData.recentRegistrations) ? 
-                    [...window.serverData.recentRegistrations] : []
-            };
 
-            nextTick(() => {
-                $animateCounters();
-                initCharts();
-            });
-        };
+    // Transformasi data dengan validasi ketat
+    dashboardData.value = {
+        totalMahasiswa: parseInt(window.serverData.totalMahasiswa) || 0,
+        pendaftarBulanIni: parseInt(window.serverData.pendaftarBulanIni) || 0,
+        labels_jurusan: Array.isArray(window.serverData.labels_jurusan) 
+            ? [...window.serverData.labels_jurusan] 
+            : [],
+        values_jurusan: Array.isArray(window.serverData.values_jurusan) 
+            ? window.serverData.values_jurusan.map(v => Number(v) || 0) // Lebih robust
+            : [],
+        recentRegistrations: Array.isArray(window.serverData.recentRegistrations) 
+            ? [...window.serverData.recentRegistrations] 
+            : []
+    };
 
+     console.log("Data di Vue:", dashboardData.value);
+
+    // Update UI setelah data siap
+    nextTick(() => {
+        try {
+            $animateCounters([
+            dashboardData.value.totalMahasiswa, 
+            dashboardData.value.pendaftarBulanIni
+        ]);
+            initCharts();
+        } catch (error) {
+            console.error('Error in post-load operations:', error);
+        }
+    });
+};
         // Initialize
         onMounted(() => {
             loadData();
@@ -141,6 +158,7 @@ createApp({
                 isMobile.value = $checkMobile();
                 resizeCharts();
             });
+            
         });
 
         watch(() => [

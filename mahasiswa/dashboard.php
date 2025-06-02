@@ -1,36 +1,15 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
-if (isset($_GET['check_update'])) {
-    header('Content-Type: application/json');
-    
-    $last_check = $_SESSION['last_check'] ?? date('Y-m-d H:i:s');
-    $user_id = $_SESSION['id'];
-    
-    // Cek update khusus untuk user ini saja (tidak semua data)
-    $query = "SELECT COUNT(*) FROM student_activities WHERE user_id = ? AND updated_at > ?";
-    $stmt = $con->prepare($query);
-    $stmt->bind_param("is", $user_id, $last_check);
-    $stmt->execute();
-    
-    $updated = $stmt->get_result()->fetch_row()[0] > 0;
-    $_SESSION['last_check'] = date('Y-m-d H:i:s');
-    
-    echo json_encode(['updated' => $updated]);
-    exit();
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('user_session'); // HARUS sebelum session_start()
+    session_start();
 }
+
 if(!isset($_SESSION['role']) || $_SESSION['role'] != 'user'){
-    header("Location: ../pages/login.php");
+    header("Location: index.php?x=login");
     exit();
 }
 
-function isActivePage($pageName) {
-    $currentPage = basename($_SERVER['PHP_SELF']);
-    return ($currentPage == $pageName) ? true : false;
-}
-
-require_once("../config/db.php"); 
+require_once __DIR__ . '/../config/db.php';  
 
 // Get user data
 $user = [];
@@ -41,12 +20,14 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 
 // Function to display profile picture
-function displayProfilePicture($userData) {
-    if (!empty($userData['foto_profil'])) {
-        $imageType = $userData['profile_picture_type'] ?? 'image/jpeg';
-        return 'data:' . $imageType . ';base64,' . base64_encode($userData['foto_profil']);
+function displayProfilePicture($user) {
+    if (!empty($user['foto_profil'])) {
+        $imageType = $user['profile_picture_type'] ?? 'image/jpeg';
+        return 'data:' . $imageType . ';base64,' . base64_encode($user['foto_profil']);
     }
-    return '';
+    return 'data:image/svg+xml;base64,' . base64_encode(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>'
+    );
 }
 
 // Get SKP data
@@ -95,7 +76,7 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/admin-dashboard.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/admin-dashboard.css">
     
     <!-- Animate.css -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
@@ -119,19 +100,19 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
         
         <ul class="nav flex-column sidebar-menu">
             <li class="nav-item">
-                <a href="dashboard.php" class="nav-link active"> 
+                <a href="index.php?x=dashboard" class="nav-link active"> 
                     <i class="fas fa-tachometer-alt"></i>
                     <span>Dashboard</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="daftar_skp.php" class="nav-link">
+                <a href="index.php?x=daftar_skp" class="nav-link">
                     <i class="fas fa-list"></i> <!-- Changed icon -->
                     <span>Daftar SKP</span> <!-- Changed text -->
                 </a>
             </li>
             <li class="nav-item">
-                <a href="addSkp.php" class="nav-link">
+                <a href="index.php?x=addSkp" class="nav-link">
                     <i class="fas fa-plus-circle"></i> <!-- Changed icon -->
                     <span>Tambah SKP</span> <!-- Changed text -->
                 </a>
@@ -139,7 +120,7 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
         </ul>
         
         <div class="sidebar-footer p-3">
-            <a href="../pages/logout.php" class="nav-link logout-btn">
+            <a href="index.php?x=logout" class="nav-link logout-btn">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </a>
@@ -172,7 +153,7 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
                         </div>
                         <ul class="dropdown-menu dropdown-menu-end profile-dropdown-menu">
                             <li>
-                                <a class="dropdown-item" href="profile.php">
+                                <a class="dropdown-item" href="index.php?x=profile">
                                     <i class="fas fa-user-edit me-2"></i> Edit Profil
                                 </a>
                             </li>
@@ -193,7 +174,12 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
             <?php endif; ?>
             
             <h3 class="mb-4">Dashboard SKP Mahasiswa</h3>
-            <p class="text-muted">Selamat datang, <?php echo htmlspecialchars($user['nama']); ?> </p>
+            <p class="text-muted">
+    Selamat datang
+    <?php if (isset($user['nama']) && trim($user['nama']) !== ''): ?>
+        , <?php echo htmlspecialchars($user['nama']); ?>
+    <?php endif; ?>
+</p>
             
             <!-- Quick Stats -->
             <div class="row mb-4">
@@ -224,7 +210,7 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
             <div class="card shadow mb-4">
                 <div class="card-header py-3 d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary">Aktivitas Terakhir</h6>
-                    <a href="view_skp.php" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
+                    <a href="index.php?x=daftar_skp" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
                 </div>
                 <div class="card-body">
                     <?php if (empty($activities)): ?>
@@ -232,7 +218,7 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
                             <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
                             <h5>Belum ada aktivitas SKP</h5>
                             <p class="text-muted">Mulai dengan menambahkan aktivitas SKP pertama Anda</p>
-                            <a href="add_skp.php" class="btn btn-primary mt-3">
+                            <a href="index.php?x=add_skp" class="btn btn-primary mt-3">
                                 <i class="fas fa-plus me-2"></i>Tambah Aktivitas
                             </a>
                         </div>
@@ -280,77 +266,7 @@ $subcategories = $con->query("SELECT * FROM activity_subcategories")->fetch_all(
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="../assets/js/utils.js"></script>
-<script src="../assets/js/script.js"></script>
+<script src="<?= BASE_URL ?>/assets/js/utils.js"></script>
 
-
-
-<script>
-    // Vue app initialization
-    const { createApp } = Vue;
-    
-    createApp({
-        data() {
-            return {
-                sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
-                isMobile: window.innerWidth <= 768
-            }
-        },
-        methods: {
-            toggleSidebar() {
-                this.sidebarCollapsed = !this.sidebarCollapsed;
-                localStorage.setItem('sidebarCollapsed', this.sidebarCollapsed);
-            },
-            checkMobile() {
-                this.isMobile = window.innerWidth <= 768;
-            },
-            checkUpdates() {
-            fetch('api/check_updates.php?user_id=<?= $_SESSION['id'] ?>')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.updated) {
-                        location.reload();
-                    }
-                    setTimeout(this.checkUpdates, 10000);
-                });
-        }
-        },
-        mounted() {
-            window.addEventListener('resize', this.checkMobile);
-            this.checkMobile();
-            
-            // Handle category-subcategory selection
-            $('#categorySelect').change(function() {
-                const categoryId = $(this).val();
-                const subcategorySelect = $('#subcategorySelect');
-                
-                if (categoryId) {
-                    subcategorySelect.prop('disabled', false);
-                    subcategorySelect.empty();
-                    subcategorySelect.append('<option value="">Pilih Aktivitas</option>');
-                    
-                    // Filter subcategories
-                    const subcategories = <?php echo json_encode($subcategories); ?>;
-                    const filtered = subcategories.filter(sub => sub.category_id == categoryId);
-                    
-                    filtered.forEach(sub => {
-                        subcategorySelect.append(
-                            `<option value="${sub.subcategory_id}">${sub.subcategory_name} (${sub.points} poin)</option>`
-                        );
-                    });
-                } else {
-                    subcategorySelect.prop('disabled', true);
-                    subcategorySelect.empty();
-                    subcategorySelect.append('<option value="">Pilih Aktivitas</option>');
-                }
-            });
-
-            // Mulai pengecekan update hanya untuk mahasiswa
-        <?php if ($_SESSION['role'] === 'user'): ?>
-        this.checkUpdates();
-        <?php endif; ?>
-        }
-    }).mount('#app');
-</script>
 </body>
 </html>

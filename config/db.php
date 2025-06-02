@@ -2,7 +2,7 @@
 $host = "localhost";
 $user = "root";  
 $pass = ""; 
-$dbname = "db_fkip";  
+$dbname = "e_skply";  
 
 $con = mysqli_connect($host, $user, $pass, $dbname);
 

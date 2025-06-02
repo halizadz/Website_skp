@@ -1,5 +1,5 @@
 <?php 
-include("../config/db.php");
+require_once __DIR__ . '/../config/db.php'; 
 
 $errors = [];
 
@@ -61,7 +61,7 @@ if(isset($_POST['submit'])){
                         icon: "success",
                         confirmButtonText: "OK"
                     }).then(() => {
-                        window.location.href = "login.php";
+                        window.location.href = "index.php?x=login";
                     });
                 </script>
             </body>
@@ -78,7 +78,7 @@ if(isset($_POST['submit'])){
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../assets/css/style.css">
+     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/style.css">
     <!-- Tambahkan SweetAlert -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <title>Register</title>
@@ -110,7 +110,9 @@ if(isset($_POST['submit'])){
                         <option value="">Pilih Program Studi</option>
                         <option value="Pendidikan Matematika" <?php echo (isset($prodi) && $prodi == "Pendidikan Matematika") ? 'selected' : ''; ?>>Pendidikan Matematika</option>
                         <option value="Pendidikan Bahasa Inggris" <?php echo (isset($prodi) && $prodi == "Pendidikan Bahasa Inggris") ? 'selected' : ''; ?>>Pendidikan Bahasa Inggris</option>
-                        <option value="Pendidikan Biologi" <?php echo (isset($prodi) && $prodi == "Pendidikan Biologi") ? 'selected' : ''; ?>>Pendidikan Biologi</option>
+                        <option value="Pendidikan Bahasa dan Sastra Indonesia" <?php echo (isset($prodi) && $prodi == "Pendidikan Bahasa dan Sastra Indonesia") ? 'selected' : ''; ?>>Pendidikan Bahasa dan Sastra Indonesia</option>
+                        <option value="Pendidikan Masyarakat" <?php echo (isset($prodi) && $prodi == "Pendidikan Masyarakat") ? 'selected' : ''; ?>>Pendidikan Masyarakat</option>
+                        <option value="Pendidikan Jasmani Kesehatan dan Rekreasi" <?php echo (isset($prodi) && $prodi == "Pendidikan Jasmani Kesehatan dan Rekreasi") ? 'selected' : ''; ?>>Pendidikan Jasmani Kesehatan dan Rekreasi</option>
                     </select>
                 </div>
 
@@ -142,7 +144,7 @@ if(isset($_POST['submit'])){
                     <input type="submit" class="btn" name="submit" value="Daftar">
                 </div>
                 <div class="links">
-                    Sudah punya akun? <a href="login.php">Login Sekarang</a>
+                    Sudah punya akun? <a href="index.php?x=login">Login Sekarang</a>
                 </div>
             </form>
         </div>

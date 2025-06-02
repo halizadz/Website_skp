@@ -8,7 +8,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // Validasi autentikasi dan role
 if (!isset($_SESSION['role'])) {
     $_SESSION['error_message'] = 'Anda harus login terlebih dahulu';
-    header("Location: /pages/login.php");
+    header("Location: index.php?x=login");
     exit();
 }
 
@@ -19,6 +19,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $userId = $_SESSION['id'];
+            $nama = trim($_POST['nama'] ?? '');
+            $npm = trim($_POST['npm'] ?? '');
+            $prodi = trim($_POST['prodi'] ?? '');
+            $email = trim($_POST['email'] ?? '');
+
+            if (empty($nama) || empty($npm) || empty($prodi) || empty($email)) {
+                throw new Exception('Semua field wajib diisi.');
+            }
+
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new Exception('Format email tidak valid.');
+            }
+
+            $stmt = $con->prepare("UPDATE users SET nama = ?, npm = ?, prodi = ?, email = ? WHERE id = ?");
+            $stmt->bind_param("ssssi", $nama, $npm, $prodi, $email, $userId);
+
+            if (!$stmt->execute()) {
+                throw new Exception('Gagal memperbarui data pengguna.');
+            }
+
+            // Perbarui session dengan data terbaru
+            $_SESSION['nama'] = $nama;
+            $_SESSION['prodi'] = $prodi;
+            $_SESSION['email'] = $email;
 
         // Handle upload gambar
         if (isset($_FILES['foto_profil']) && $_FILES['foto_profil']['error'] === UPLOAD_ERR_OK) {
@@ -48,19 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $_SESSION['profile_picture_type'] = $file['type'];
             $_SESSION['success_message'] = 'Foto profil berhasil diperbarui.';
-        }
-
-        // Handle update data lainnya
-        $fieldsToUpdate = [];
-        $params = [];
-        $types = '';
-
-        foreach (['nama', 'npm', 'prodi', 'email'] as $field) {
-            if (isset($_POST[$field]) && !empty($_POST[$field])) {
-                $fieldsToUpdate[] = "$field = ?";
-                $params[] = $_POST[$field];
-                $types .= 's';
-            }
         }
 
         if (!empty($_POST['password']) || !empty($_POST['old_password'])) {
@@ -111,17 +122,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception('Gagal memperbarui password: ' . $con->error);
         }
         
-        // Set session message untuk informasi berhasil
-        $_SESSION['success_message'] = 'Password berhasil diperbarui.';
-        
-        // Tidak perlu logout, user bisa langsung melihat perubahan
-        header("Location: profile.php");
-        exit();
+       $_SESSION['success_message'] = 'Password berhasil diperbarui.';
+        } else {
+            $_SESSION['success_message'] = 'Data profil berhasil diperbarui.';
         }
+        header("Location: index.php?x=profile");
+        exit();
+
+        
         
     } catch (Exception $e) {
         $_SESSION['error_message'] = $e->getMessage();
-        header("Location: profile.php");
+        header("Location: index.php?x=profile");
         exit();
     }
 }
