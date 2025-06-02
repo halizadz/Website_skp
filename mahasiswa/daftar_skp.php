@@ -678,7 +678,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'print') {
                 <p class="empty-state-description">
                     Mulai bangun portofolio SKP Anda dengan menambahkan aktivitas pertama.
                 </p>
-                <a href="index.php?x=add_skp" class="btn btn-animate-icon">
+                <a href="index.php?x=addSkp" class="btn btn-animate-icon">
                     <i class="fas fa-plus-circle me-2"></i>Tambah Aktivitas Pertama
                 </a>
                 <div class="empty-state-tips mt-4">
